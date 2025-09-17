@@ -25,8 +25,8 @@ jobs:
       with:
         nuget-version: 4.4.1
 
-    - name: Restore NuGet packages
-      run: nuget restore Web/src/MercuryHealth.sln
+    # - name: Restore NuGet packages
+    #   run: nuget restore Web/src/MercuryHealth.sln
 
       # Build solution with MSBuild
     - name: Setup MSBuild
