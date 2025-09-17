@@ -11,18 +11,65 @@ on:
 
 jobs:
   build:
-
     runs-on: windows-2022
-
+    env:
+      BuildPlatform: "Any CPU"
+      BuildConfiguration: "Release"
+      
     steps:
-    - uses: actions/checkout@v4
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+    - name: Checkout source
+      uses: actions/checkout@v4
+
+    - name: Setup NuGet
+      uses: nuget/setup-nuget@v2
       with:
-        dotnet-version: 4.4.1
-    - name: Restore dependencies
-      run: dotnet restore
-    - name: Build
-      run: dotnet build --no-restore
-    - name: Test
-      run: dotnet test --no-build --verbosity normal
+        nuget-version: 4.4.1
+
+    - name: Restore NuGet packages
+      run: nuget restore Web/src/MercuryHealth.sln
+
+      # Build solution with MSBuild
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Build solution
+      run: msbuild Web/src/MercuryHealth.sln `
+          /p:DeployOnBuild=true `
+          /p:WebPublishMethod=Package `
+          /p:PackageAsSingleFile=true `
+          /p:SkipInvalidConfigurations=true `
+          /p:PackageLocation="${{ github.workspace }}\artifacts\\" `
+          /p:Platform="${{ env.BuildPlatform }}" `
+          /p:Configuration="${{ env.BuildConfiguration }}"
+
+      # Run tests with VSTest
+    - name: Setup VSTest
+      uses: darenm/Setup-VSTest@v1
+
+    - name: Run tests
+      run: vstest.console.exe **\${{ env.BuildConfiguration }}\*test*.dll `
+          /TestCaseFilter:"TestCategory=Unit Test" `
+          /Platform:"${{ env.BuildPlatform }}" `
+          /InIsolation
+
+      # # Copy files (equivalent of CopyFiles@2)
+      # - name: Copy DACPAC files
+      #   run: |
+      #     mkdir -p ${{ github.workspace }}/artifacts
+      #     xcopy "$(Build.SourcesDirectory)\**\bin\${{ env.BuildConfiguration }}\**" "${{ github.workspace }}\artifacts\" /E /Y
+
+      # Publish symbols (equivalent of PublishSymbols@2)
+      # GitHub doesn’t have symbol server integration like Azure DevOps
+      # Instead, upload as an artifact if you want
+    - name: Upload PDB symbols
+      uses: actions/upload-artifact@v4
+      with:
+          name: pdb-symbols
+          path: '**\bin\**\*.pdb'
+
+      # Publish build artifacts (equivalent of PublishBuildArtifacts@1)
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+          name: mercuryhealth-artifacts
+          path: ${{ github.workspace }}/artifacts
